@@ -27,6 +27,20 @@
   window.auth = firebase.auth();
   window.db = firebase.firestore();
 
+  // Keep authentication across browser restarts for Admin, Delivery and Customer.
+  window.authPersistenceReady = window.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+    .catch(err => { console.warn("Could not set local auth persistence", err); });
+
+  let authReadyResolve;
+  window.authReady = new Promise(resolve => { authReadyResolve = resolve; });
+  let authReadyResolved = false;
+  window.auth.onAuthStateChanged(user => {
+    if (!authReadyResolved) {
+      authReadyResolved = true;
+      authReadyResolve(user || null);
+    }
+  });
+
   // Firestore helpers compatible with the code used by Customer/Admin/Delivery.
   window.collection = (db, ...segments) => {
     let ref = db.collection(segments[0]);
@@ -47,6 +61,7 @@
 
   window.addDoc = (ref, data) => ref.add(data);
   window.updateDoc = (ref, data) => ref.update(data);
+  window.deleteDoc = ref => ref.delete();
   window.setDoc = (ref, data, options = { merge: true }) =>
     ref.set(data, options);
   window.getDoc = ref => ref.get();

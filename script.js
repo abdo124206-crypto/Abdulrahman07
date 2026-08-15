@@ -71,6 +71,9 @@ async function ensureCustomerSession(){
   if(currentUser) return currentUser;
   if(!window.firebaseReady) return null;
   try{
+    await (window.authReady || Promise.resolve(null));
+    if(currentUser) return currentUser;
+    await (window.authPersistenceReady || Promise.resolve());
     const cred = await signInAnonymously();
     currentUser = cred.user;
     return currentUser;
@@ -159,7 +162,7 @@ function watchOrderChat(){
     const box=$("#chatMessages");
     if(!box)return;
     if(snap.empty){box.innerHTML=`<div class="chat-empty">مفيش رسائل لسه. ابعتلنا لو محتاج أي حاجة.</div>`;return;}
-    box.innerHTML=snap.docs.map(d=>{const m=d.data();const mine=m.senderUid===currentUser.uid;return `<div class="chat-bubble ${mine?"mine":"restaurant"}"><span>${esc(m.text||"")}</span><small>${mine?"أنت":"المطعم"}</small></div>`}).join("");
+    box.innerHTML=snap.docs.map(d=>{const m=d.data();const mine=m.senderUid===currentUser.uid;const who=m.senderRole==="driver"?"الدليفري":m.senderRole==="admin"?"المطعم":"أنت";return `<div class="chat-bubble ${mine?"mine":"restaurant"}"><span>${esc(m.text||"")}</span><small>${mine?"أنت":who}</small></div>`}).join("");
     box.scrollTop=box.scrollHeight;
   },err=>console.error("chat listener",err));
 }
@@ -207,13 +210,21 @@ $("#searchInput").addEventListener("input",e=>{search=e.target.value;renderMenu(
 $("#checkoutForm").addEventListener("submit",async e=>{e.preventDefault();const form=e.currentTarget;const data=new FormData(form);if(window.firebaseReady && !currentUser){await ensureCustomerSession();}if(window.firebaseReady && !currentUser){toast("تعذر إنشاء جلسة الطلب");return}const order={customer:{uid:currentUser?.uid||"guest",name:data.get("name"),phone:data.get("phone"),address:data.get("address")},notes:data.get("notes")||"",items:cart.map(row=>{const item=menu.find(x=>x.id===row.id);return{id:row.id,name:item?.ar||"",qty:row.qty,unitPrice:item?.price||0}}),total:cartTotal(),status:"new",driver:{uid:"",name:""},createdAt:window.firebaseReady?serverTimestamp():new Date()};try{
   if(window.firebaseReady && currentUser){
     await setDoc(doc(db,"users",currentUser.uid),{role:"customer",name:order.customer.name,phone:order.customer.phone,updatedAt:serverTimestamp()},{merge:true});
-    const ref=await addDoc(collection(db,"orders"),order);localStorage.setItem("alPrinceLastOrder",ref.id);watchLastOrder();
+    const ref=await addDoc(collection(db,"orders"),order);localStorage.setItem("alPrinceLastOrder",ref.id);
+    const ids=JSON.parse(localStorage.getItem("alPrinceOrderIds")||"[]"); if(!ids.includes(ref.id)) ids.push(ref.id); localStorage.setItem("alPrinceOrderIds",JSON.stringify(ids));
+    watchLastOrder();
   }else{
     const localId="LOCAL-"+Date.now(); order.id=localId; order.status="new"; localStorage.setItem("alPrinceLastOrderData",JSON.stringify(order)); localStorage.setItem("alPrinceLastOrder",localId); renderTracking(order);
   }
   cart=[];saveCart();renderCart();closeCheckout();form.reset();$("#trackingSection")?.scrollIntoView({behavior:"smooth"});toast(window.firebaseReady?"تم إرسال الطلب للمطعم ✓":"تم تسجيل الطلب في المعاينة ✓");
 }catch(err){console.error(err);toast("تعذر إرسال الطلب. تأكد من Firebase.")}});
 
+if(window.firebaseReady && window.auth){
+  window.auth.onAuthStateChanged(user=>{
+    currentUser=user||null;
+    if(currentUser){ updateAccountUI(); watchLastOrder(); }
+  });
+}
 ensureAccountUI();ensureTrackingUI();renderCategories();renderMenu();renderCart();
 (async()=>{
   if(window.firebaseReady){

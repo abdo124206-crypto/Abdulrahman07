@@ -32,6 +32,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+
+    match /users/{userId}/assignments/{assignmentId} {
+      allow read: if signedIn() && (isAdmin() || request.auth.uid == userId);
+      allow create, update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
     match /orders/{orderId} {
       allow create: if isCustomer()
         && request.resource.data.customer.uid == request.auth.uid
@@ -41,12 +48,12 @@ service cloud.firestore {
       allow read: if signedIn() && (
         isAdmin()
         || resource.data.customer.uid == request.auth.uid
-        || (isDriver() && resource.data.driver.uid == request.auth.uid)
+        || (isDriver() && (resource.data.driver.uid == request.auth.uid || resource.data.assignedDriverUid == request.auth.uid))
       );
 
       allow update: if isAdmin()
         || (isDriver()
-          && resource.data.driver.uid == request.auth.uid
+          && (resource.data.driver.uid == request.auth.uid || resource.data.assignedDriverUid == request.auth.uid)
           && request.resource.data.customer.uid == resource.data.customer.uid
           && request.resource.data.driver.uid == resource.data.driver.uid
           && request.resource.data.total == resource.data.total
@@ -73,12 +80,12 @@ service cloud.firestore {
         allow read: if signedIn() && (
           isAdmin()
           || get(/databases/$(database)/documents/orders/$(orderId)).data.customer.uid == request.auth.uid
-          || (isDriver() && get(/databases/$(database)/documents/orders/$(orderId)).data.driver.uid == request.auth.uid)
+          || (isDriver() && (get(/databases/$(database)/documents/orders/$(orderId)).data.driver.uid == request.auth.uid || get(/databases/$(database)/documents/orders/$(orderId)).data.assignedDriverUid == request.auth.uid))
         );
         allow create: if signedIn() && (
           isAdmin()
           || get(/databases/$(database)/documents/orders/$(orderId)).data.customer.uid == request.auth.uid
-          || (isDriver() && get(/databases/$(database)/documents/orders/$(orderId)).data.driver.uid == request.auth.uid)
+          || (isDriver() && (get(/databases/$(database)/documents/orders/$(orderId)).data.driver.uid == request.auth.uid || get(/databases/$(database)/documents/orders/$(orderId)).data.assignedDriverUid == request.auth.uid))
         );
         allow update, delete: if isAdmin();
       }

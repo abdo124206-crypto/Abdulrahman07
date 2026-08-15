@@ -49,10 +49,10 @@ body{background:radial-gradient(circle at 85% 0%,#fff7ea 0,#f7f3ee 30%,#efe8e1 1
 
 <section id="overview" class="page active">
   <div class="cards">
-    <article class="stat"><span>طلبات اليوم</span><b>48</b><small class="up">↑ 12% عن أمس</small></article>
-    <article class="stat"><span>مبيعات اليوم</span><b>8,420 <i>ج</i></b><small class="up">↑ 8.4% عن أمس</small></article>
-    <article class="stat"><span>طلبات قيد التحضير</span><b>7</b><small>تحتاج متابعة</small></article>
-    <article class="stat"><span>الدليفري المتاح</span><b>5</b><small>من أصل 8</small></article>
+    <article class="stat"><span>طلبات اليوم</span><b id="statToday">0</b><small>من الطلبات الفعلية</small></article>
+    <article class="stat"><span>مبيعات اليوم</span><b id="statRevenue">0 <i>ج</i></b><small>من الطلبات الفعلية</small></article>
+    <article class="stat"><span>طلبات نشطة</span><b id="statActive">0</b><small>جديد / تحضير / توصيل</small></article>
+    <article class="stat"><span>الدليفري المسجل</span><b id="statDrivers">0</b><small>من Firestore</small></article>
   </div>
   <div class="grid2">
     <article class="panel">
@@ -61,10 +61,7 @@ body{background:radial-gradient(circle at 85% 0%,#fff7ea 0,#f7f3ee 30%,#efe8e1 1
     </article>
     <article class="panel">
       <div class="panel-head"><div><span class="eyebrow">TODAY</span><h2>ملخص سريع</h2></div></div>
-      <div class="progress"><div><span>المشويات</span><b>68%</b></div><i><em style="width:68%"></em></i></div>
-      <div class="progress"><div><span>الساندويتشات</span><b>47%</b></div><i><em style="width:47%"></em></i></div>
-      <div class="progress"><div><span>الأطباق الرئيسية</span><b>36%</b></div><i><em style="width:36%"></em></i></div>
-      <div class="progress"><div><span>المشروبات</span><b>25%</b></div><i><em style="width:25%"></em></i></div>
+      <div id="liveSummary"><div class="progress"><div><span>لا توجد بيانات بعد</span><b>0%</b></div><i><em style="width:0%"></em></i></div></div>
     </article>
   </div>
 </section>

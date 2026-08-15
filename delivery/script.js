@@ -86,4 +86,20 @@ document.addEventListener("click",async e=>{
 });
 $("#modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
 
-onAuthStateChanged(auth,async user=>{currentUser=user;if(!user){showGate();return}try{const role=await roleOf(user.uid);if(role!=="driver"){await signOut(auth);showGate("الحساب ده مش Driver.");return}$("#authGate").hidden=true;$("#driverName").textContent="مندوب الدليفري";$("#welcomeTitle").textContent="أهلاً بيك 👋";$("#profileName").textContent="مندوب الدليفري";await loadOrders()}catch(e){console.error(e);await signOut(auth);showGate("تعذر التحقق من الصلاحيات.")}});
+onAuthStateChanged(auth,async user=>{
+  currentUser=user;
+  if(!user){showGate();return}
+  try{
+    const role=await roleOf(user.uid);
+    if(role!=="driver"){
+      await signOut(auth);
+      showGate("الحساب ده مش Driver.");
+      return;
+    }
+    $("#authGate").hidden=true;
+    $("#driverName").textContent="مندوب الدليفري";
+    $("#welcomeTitle").textContent="أهلاً بيك 👋";
+    $("#profileName").textContent="مندوب الدليفري";
+    await loadOrders();
+  }catch(e){console.error(e);showGate("تعذر التحقق من الصلاحيات.")}
+});

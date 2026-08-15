@@ -34,7 +34,7 @@ async function openOrderModal(id){
   $("#orderModalDetails").innerHTML=`<div class="order-modal-summary"><div><span>العميل</span><b>${escapeHtml(o.customer?.name||"عميل")}</b></div><div><span>الهاتف</span><b>${escapeHtml(o.customer?.phone||"—")}</b></div><div><span>العنوان</span><b>${escapeHtml(o.customer?.address||"—")}</b></div><div><span>الإجمالي</span><b>${Number(o.total||0)} ج</b></div></div><div class="order-modal-items">${(o.items||[]).map(i=>`<div><span>${escapeHtml(i.name)} ×${i.qty}</span><b>${Number(i.unitPrice||0)*Number(i.qty||0)} ج</b></div>`).join("")}</div>`;
   if(adminChatUnsub)adminChatUnsub();
   const q=query(collection(db,"orders",id,"messages"),orderBy("createdAt","asc"));
-  adminChatUnsub=onSnapshot(q,snap=>{const box=$("#adminChatMessages");if(!snap.size){box.innerHTML='<div class="admin-chat-empty">لا توجد رسائل من العميل.</div>';return;}box.innerHTML=snap.docs.map(d=>{const m=d.data();const mine=m.senderRole==="admin";return `<div class="admin-chat-bubble ${mine?"mine":"customer"}"><span>${escapeHtml(m.text||"")}</span><small>${mine?"المطعم":"العميل"}</small></div>`}).join("");box.scrollTop=box.scrollHeight;},err=>console.error(err));
+  adminChatUnsub=onSnapshot(q,snap=>{const box=$("#adminChatMessages");if(!snap.size){box.innerHTML='<div class="admin-chat-empty">لا توجد رسائل من العميل.</div>';return;}box.innerHTML=snap.docs.map(d=>{const m=d.data();const mine=m.senderRole==="admin";const who=m.senderRole==="driver"?"الدليفري":m.senderRole==="customer"?"العميل":"المطعم";return `<div class="admin-chat-bubble ${mine?"mine":"customer"}"><span>${escapeHtml(m.text||"")}</span><small>${mine?"المطعم":who}</small></div>`}).join("");box.scrollTop=box.scrollHeight;},err=>console.error(err));
 }
 async function sendAdminMessage(e){
   e.preventDefault();const input=$("#adminChatInput");const text=input.value.trim();const title=$("#orderModalTitle")?.textContent||"";
@@ -48,30 +48,42 @@ function showGate(message=""){
   gate.innerHTML=`<div class="auth-card"><div class="auth-logo">البرنس <small>FOOD</small></div><span class="auth-eyebrow">ADMIN ACCESS</span><h1>دخول لوحة الإدارة</h1><p class="auth-sub">استخدم حساب الإدارة المصرح به.</p><form id="adminLogin"><label>البريد الإلكتروني<input id="adminEmail" type="email" required></label><label>كلمة المرور<input id="adminPassword" type="password" required></label><button class="auth-submit">دخول</button><div id="adminMsg" class="auth-msg error">${message}</div></form></div>`;
   $("#adminLogin").onsubmit=async e=>{e.preventDefault();const msg=$("#adminMsg");try{await signInWithEmailAndPassword(auth,$("#adminEmail").value.trim(),$("#adminPassword").value);msg.className="auth-msg";msg.textContent="جاري الدخول..."}catch(err){msg.textContent="البريد أو كلمة المرور غير صحيحة."}};
 }
-async function roleOf(uid){const s=await getDoc(doc(db,"users",uid));return s.exists?s.data().role:""}
+async function roleOf(uid){const s=await getDoc(doc(db,"users",uid));return s.exists() ? String(s.data()?.role || "").trim().toLowerCase() : ""}
 function renderOrders(){
   const tbody=$("#ordersTable");
   if(!orders.length){tbody.innerHTML=`<tr><td colspan="7"><div style="padding:35px;text-align:center;color:#938682">لا توجد طلبات حاليًا. أي طلب جديد من العميل سيظهر هنا لحظيًا.</div></td></tr>`;$("#recentOrders").innerHTML=`<div style="padding:30px;text-align:center;color:#938682">لا توجد طلبات جديدة.</div>`;return;}
   tbody.innerHTML=orders.map(o=>{
     const driverName=o.driver?.name||"غير مسند";
     const options=[`<option value="">غير مسند</option>`,...drivers.map(d=>`<option value="${d.uid}" ${o.driver?.uid===d.uid?"selected":""}>${d.name||"مندوب الدليفري"}</option>`)].join("");
-    return `<tr><td><strong>#${o.id.slice(0,7)}</strong><small>${o.createdAtText}</small></td><td><strong>${escapeHtml(o.customer?.name||"عميل")}</strong><small>${escapeHtml(o.customer?.phone||"")}</small></td><td>${(o.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(" + ")}</td><td><strong>${Number(o.total||0)} ج</strong></td><td><select class="select" data-status="${o.id}">${Object.entries(statusLabel).map(([k,v])=>`<option value="${k}" ${o.status===k?"selected":""}>${v}</option>`).join("")}</select></td><td><select class="select" data-driver="${o.id}">${options}</select></td><td><button class="edit" data-open="${o.id}">فتح</button></td></tr>`;
+    return `<tr><td><strong>#${o.id.slice(0,7)}</strong><small>${o.createdAtText}</small></td><td><strong>${escapeHtml(o.customer?.name||"عميل")}</strong><small>${escapeHtml(o.customer?.phone||"")}</small></td><td>${(o.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(" + ")}</td><td><strong>${Number(o.total||0)} ج</strong></td><td><select class="select" data-status="${o.id}">${Object.entries(statusLabel).map(([k,v])=>`<option value="${k}" ${o.status===k?"selected":""}>${v}</option>`).join("")}</select></td><td><select class="select" data-driver="${o.id}">${options}</select></td><td><button class="edit" data-open="${o.id}">فتح</button> <button class="edit danger" data-cancel-order="${o.id}" ${o.status==="cancelled"||o.status==="delivered"?"disabled":""}>إلغاء</button> <button class="edit danger" data-delete-order="${o.id}">حذف</button></td></tr>`;
   }).join("");
   $("#recentOrders").innerHTML=orders.slice(0,5).map(o=>`<div class="order-row"><b>#${o.id.slice(0,6)}</b><div><strong>${escapeHtml(o.customer?.name||"عميل")}</strong><small>${(o.items||[]).slice(0,2).map(i=>`${i.name} ×${i.qty}`).join(" + ")}</small></div><b>${Number(o.total||0)} ج</b><span class="badge ${statusClass[o.status]||"new"}">${statusLabel[o.status]||o.status}</span></div>`).join("");
   renderStats();
 }
 function renderStats(){
-  const today=new Date().toDateString();
-  const todays=orders.filter(o=>o.createdAt?.toDate?.().toDateString?.()===today);
-  const revenue=todays.reduce((s,o)=>s+(Number(o.total)||0),0);
-  const prep=orders.filter(o=>["preparing","ready","on_the_way"].includes(o.status)).length;
-  const activeDrivers=drivers.length;
-  const cards=document.querySelectorAll(".stat b");
-  if(cards[0])cards[0].textContent=todays.length;
-  if(cards[1])cards[1].innerHTML=`${revenue} <i>ج</i>`;
-  if(cards[2])cards[2].textContent=prep;
-  if(cards[3])cards[3].textContent=activeDrivers;
+  const now=new Date();
+  const todayKey=now.toDateString();
+  const todays=orders.filter(o=>{
+    const d=o.createdAt?.toDate?.() || (o.createdAt ? new Date(o.createdAt) : null);
+    return d && d.toDateString()===todayKey;
+  });
+  const active=orders.filter(o=>["new","preparing","ready","on_the_way"].includes(o.status));
+  const revenue=todays.reduce((sum,o)=>sum+Number(o.total||0),0);
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
+  set("statToday",todays.length);set("statRevenue",revenue+" ج");set("statActive",active.length);set("statDrivers",drivers.length);
+
+  const counts={};
+  todays.forEach(o=>(o.items||[]).forEach(i=>{
+    const key=i.name||"أصناف أخرى"; counts[key]=(counts[key]||0)+Number(i.qty||0);
+  }));
+  const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  const box=document.getElementById("liveSummary");
+  if(box){
+    const max=top[0]?.[1]||1;
+    box.innerHTML=top.length?top.map(([name,count])=>{const pct=Math.round(count/max*100);return `<div class="progress"><div><span>${escapeHtml(name)}</span><b>${count} قطعة</b></div><i><em style="width:${pct}%"></em></i></div>`}).join(""):`<div style="color:#938682;font-size:11px;padding:15px 0">لا توجد طلبات اليوم لعرض ملخص.</div>`;
+  }
 }
+
 function renderDrivers(){
   const grid=$("#driverGrid");
   if(!drivers.length){grid.innerHTML=`<div class="panel" style="grid-column:1/-1">لم يتم إنشاء مستخدم دليفري في Firestore بعد.</div>`;return;}
@@ -108,12 +120,37 @@ function subscribe(){
   unsubDrivers=onSnapshot(dq,snap=>{drivers=snap.docs.map(d=>({uid:d.id,...d.data()}));renderDrivers();renderOrders()},err=>console.error(err));
 }
 function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
+async function cancelOrder(id){
+  const o=orders.find(x=>x.id===id);
+  if(!o || o.status==="cancelled" || o.status==="delivered") return;
+  if(!confirm(`تأكيد إلغاء الطلب #${id.slice(0,7)}؟`)) return;
+  try{
+    await updateDoc(doc(db,"orders",id),{status:"cancelled",cancelledAt:serverTimestamp(),updatedAt:serverTimestamp()});
+    toast("تم إلغاء الطلب ✓");
+  }catch(err){console.error(err);toast("تعذر إلغاء الطلب")}
+}
+async function deleteOrder(id){
+  if(!confirm(`حذف الطلب #${id.slice(0,7)} نهائيًا؟\nهذا الإجراء لا يمكن التراجع عنه.`)) return;
+  try{
+    await deleteDoc(doc(db,"orders",id));
+    if(adminChatUnsub){adminChatUnsub();adminChatUnsub=null;}
+    const m=$("#orderModal"); if(m) m.hidden=true;
+    toast("تم حذف الطلب ✓");
+  }catch(err){console.error(err);toast("تعذر حذف الطلب")}
+}
+
 function showPage(id){document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===id));document.querySelectorAll(".nav").forEach(n=>n.classList.toggle("active",n.dataset.page===id));const titles={overview:"نظرة عامة",orders:"الطلبات",menu:"إدارة المنيو",drivers:"الدليفري"};$("#pageTitle").textContent=titles[id]||"الإدارة";$(".sidebar").classList.remove("open")}
 
 document.addEventListener("click",e=>{const n=e.target.closest(".nav");if(n)showPage(n.dataset.page);const g=e.target.closest("[data-go]");if(g)showPage(g.dataset.go);if(e.target.id==="toggleSide")$(".sidebar").classList.toggle("open");if(e.target.id==="logout")signOut(auth);if(e.target.id==="addDish")openDishModal();
   const editDish=e.target.closest("[data-edit-dish]"); if(editDish)openDishModal(menuItems.find(x=>x.id===editDish.dataset.editDish));
-  const delDish=e.target.closest("[data-delete-dish]"); if(delDish)deleteDish(delDish.dataset.deleteDish);const open=e.target.closest("[data-open]");if(open)openOrderModal(open.dataset.open)});
-document.addEventListener("change",async e=>{const st=e.target.closest("[data-status]");const dr=e.target.closest("[data-driver]");try{if(st)await updateDoc(doc(db,"orders",st.dataset.status),{status:st.value});if(dr){const d=drivers.find(x=>x.uid===dr.value);await updateDoc(doc(db,"orders",dr.dataset.driver),{driver:d?{uid:d.uid,name:d.name||"مندوب الدليفري"}:{uid:"",name:""}})}}catch(err){console.error(err);toast("تعذر تحديث الطلب. تأكد من الصلاحيات.")}});
+  const delDish=e.target.closest("[data-delete-dish]"); if(delDish)deleteDish(delDish.dataset.deleteDish);
+  const cancel=e.target.closest("[data-cancel-order]"); if(cancel)cancelOrder(cancel.dataset.cancelOrder);
+  const delOrder=e.target.closest("[data-delete-order]"); if(delOrder)deleteOrder(delOrder.dataset.deleteOrder);
+  const close=e.target.closest("#closeOrderModal"); if(close){e.preventDefault();closeOrderModal();return;}
+  const open=e.target.closest("[data-open]");if(open)openOrderModal(open.dataset.open);
+});
+document.addEventListener("change",async e=>{const st=e.target.closest("[data-status]");const dr=e.target.closest("[data-driver]");try{if(st)await updateDoc(doc(db,"orders",st.dataset.status),{status:st.value});if(dr){const d=drivers.find(x=>x.uid===dr.value);await updateDoc(doc(db,"orders",dr.dataset.driver),{driver:d?{uid:d.uid,name:d.name||"مندوب الدليفري"}:{uid:"",name:""},assignedDriverUid:d?d.uid:"",assignedDriverName:d?(d.name||"مندوب الدليفري"):"",assignedAt:d?serverTimestamp():null,updatedAt:serverTimestamp()});
+      if(d){await setDoc(doc(db,"users",d.uid,"assignments",dr.dataset.driver),{orderId:dr.dataset.driver,driverUid:d.uid,driverName:d.name||"مندوب الدليفري",active:true,createdAt:serverTimestamp(),updatedAt:serverTimestamp()},{merge:true})}}}catch(err){console.error(err);toast("تعذر تحديث الطلب. تأكد من الصلاحيات.")}});
 function toast(t){const x=document.createElement("div");x.textContent=t;x.style.cssText="position:fixed;bottom:20px;left:20px;background:#4f0b1c;color:#fff;padding:12px 16px;border-radius:10px;z-index:9999;font-size:11px";document.body.appendChild(x);setTimeout(()=>x.remove(),2500)}
 
 const logout=document.createElement("button");logout.id="logout";logout.className="edit";logout.textContent="خروج";$(".user").appendChild(logout);
