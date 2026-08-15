@@ -1,0 +1,97 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasUserDoc() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return hasUserDoc()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : "";
+    }
+
+    function isAdmin() { return userRole() == "admin"; }
+    function isDriver() { return userRole() == "driver"; }
+    function isCustomer() { return signedIn() && !isAdmin() && !isDriver(); }
+
+    match /users/{userId} {
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role == "customer";
+      allow read: if signedIn() && (isAdmin() || request.auth.uid == userId);
+      allow update: if isAdmin()
+        || (signedIn() && request.auth.uid == userId
+            && request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow create: if isCustomer()
+        && request.resource.data.customer.uid == request.auth.uid
+        && request.resource.data.status == "new"
+        && request.resource.data.driver.uid == "";
+
+      allow read: if signedIn() && (
+        isAdmin()
+        || resource.data.customer.uid == request.auth.uid
+        || (isDriver() && resource.data.driver.uid == request.auth.uid)
+      );
+
+      allow update: if isAdmin()
+        || (isDriver()
+          && resource.data.driver.uid == request.auth.uid
+          && request.resource.data.customer.uid == resource.data.customer.uid
+          && request.resource.data.driver.uid == resource.data.driver.uid
+          && request.resource.data.total == resource.data.total
+          && request.resource.data.items == resource.data.items
+          && request.resource.data.status in ["ready", "on_the_way", "delivered"])
+        || (isCustomer()
+          && resource.data.customer.uid == request.auth.uid
+          && (
+            (resource.data.status == "new"
+              && request.resource.data.status == "cancelled"
+              && request.resource.data.customer.uid == resource.data.customer.uid
+              && request.resource.data.items == resource.data.items
+              && request.resource.data.total == resource.data.total)
+            || (request.resource.data.customer.uid == resource.data.customer.uid
+              && request.resource.data.items == resource.data.items
+              && request.resource.data.total == resource.data.total
+              && request.resource.data.status == resource.data.status
+              && request.resource.data.keys().hasOnly(["customer","notes","items","total","status","driver","createdAt","customerMessage"]))
+          ));
+
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if signedIn() && (
+          isAdmin()
+          || get(/databases/$(database)/documents/orders/$(orderId)).data.customer.uid == request.auth.uid
+          || (isDriver() && get(/databases/$(database)/documents/orders/$(orderId)).data.driver.uid == request.auth.uid)
+        );
+        allow create: if signedIn() && (
+          isAdmin()
+          || get(/databases/$(database)/documents/orders/$(orderId)).data.customer.uid == request.auth.uid
+          || (isDriver() && get(/databases/$(database)/documents/orders/$(orderId)).data.driver.uid == request.auth.uid)
+        );
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /menu/{itemId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /drivers/{driverId} {
+      allow read: if signedIn() && (isAdmin() || resource.data.uid == request.auth.uid);
+      allow write: if isAdmin();
+    }
+  }
+}
