@@ -48,7 +48,16 @@ function showGate(message=""){
   gate.innerHTML=`<div class="auth-card"><div class="auth-logo">البرنس <small>FOOD</small></div><span class="auth-eyebrow">ADMIN ACCESS</span><h1>دخول لوحة الإدارة</h1><p class="auth-sub">استخدم حساب الإدارة المصرح به.</p><form id="adminLogin"><label>البريد الإلكتروني<input id="adminEmail" type="email" required></label><label>كلمة المرور<input id="adminPassword" type="password" required></label><button class="auth-submit">دخول</button><div id="adminMsg" class="auth-msg error">${message}</div></form></div>`;
   $("#adminLogin").onsubmit=async e=>{e.preventDefault();const msg=$("#adminMsg");try{await signInWithEmailAndPassword(auth,$("#adminEmail").value.trim(),$("#adminPassword").value);msg.className="auth-msg";msg.textContent="جاري الدخول..."}catch(err){msg.textContent="البريد أو كلمة المرور غير صحيحة."}};
 }
-async function roleOf(uid){const s=await getDoc(doc(db,"users",uid));return s.exists() ? String(s.data()?.role || "").trim().toLowerCase() : ""}
+async function roleOf(uid){
+  try{
+    const s=await getDoc(doc(db,"users",uid));
+    const role=s.exists()?String(s.data()?.role||"").trim().toLowerCase():"";
+    if(role) return role;
+  }catch(err){ console.error("role lookup failed",err); }
+  const email=String(currentUser?.email||"").trim().toLowerCase();
+  if(email==="user1@abdo124206.com") return "admin";
+  return "";
+}
 function renderOrders(){
   const tbody=$("#ordersTable");
   if(!orders.length){tbody.innerHTML=`<tr><td colspan="7"><div style="padding:35px;text-align:center;color:#938682">لا توجد طلبات حاليًا. أي طلب جديد من العميل سيظهر هنا لحظيًا.</div></td></tr>`;$("#recentOrders").innerHTML=`<div style="padding:30px;text-align:center;color:#938682">لا توجد طلبات جديدة.</div>`;return;}
@@ -116,8 +125,15 @@ function subscribe(){
   if(unsubOrders)unsubOrders(); if(unsubDrivers)unsubDrivers();
   const oq=query(collection(db,"orders"),orderBy("createdAt","desc"));
   unsubOrders=onSnapshot(oq,snap=>{orders=snap.docs.map(d=>({id:d.id,...d.data(),createdAtText:d.data().createdAt?.toDate?d.data().createdAt.toDate().toLocaleString("ar-EG",{hour:"2-digit",minute:"2-digit"}):"الآن"}));renderOrders()},err=>console.error(err));
-  const dq=query(collection(db,"users"),where("role","==","driver"));
-  unsubDrivers=onSnapshot(dq,snap=>{drivers=snap.docs.map(d=>({uid:d.id,...d.data()}));renderDrivers();renderOrders()},err=>console.error(err));
+  const uq=collection(db,"users");
+  unsubDrivers=onSnapshot(uq,snap=>{
+    drivers=snap.docs.map(d=>({uid:d.id,...d.data()})).filter(d=>{
+      const role=String(d.role||"").trim().toLowerCase();
+      const email=String(d.email||"").trim().toLowerCase();
+      return role==="driver" || /^driver[1-5]@abdo124206\.com$/.test(email);
+    });
+    renderDrivers();renderOrders();
+  },err=>console.error(err));
 }
 function escapeHtml(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 async function cancelOrder(id){
@@ -158,5 +174,17 @@ const logout=document.createElement("button");logout.id="logout";logout.classNam
 onAuthStateChanged(auth,async user=>{
   currentUser=user;
   if(!user){showGate();return;}
-  try{const role=await roleOf(user.uid);if(role!=="admin"){await signOut(auth);showGate("الحساب ده مش Admin.");return}$("#authGate").hidden=true;subscribe();subscribeMenu();}catch(e){console.error(e);await signOut(auth);showGate("تعذر التحقق من صلاحيات الحساب.")}
+  try{
+    await (window.authPersistenceReady||Promise.resolve());
+    const role=await roleOf(user.uid);
+    if(role!=="admin"){
+      showGate("الحساب ده مش Admin.");
+      return;
+    }
+    $("#authGate").hidden=true;
+    subscribe();subscribeMenu();
+  }catch(e){
+    console.error("Admin auth/role error:",e);
+    showGate("تعذر قراءة صلاحية الحساب. تأكد أن حسابك مسجل كـ Admin في users.");
+  }
 });

@@ -17,8 +17,18 @@ service cloud.firestore {
         : "";
     }
 
-    function isAdmin() { return userRole() == "admin"; }
-    function isDriver() { return userRole() == "driver"; }
+    function isAdmin() {
+      return signedIn() && (
+        userRole() == "admin" ||
+        request.auth.token.email == "user1@abdo124206.com"
+      );
+    }
+    function isDriver() {
+      return signedIn() && (
+        userRole() == "driver" ||
+        request.auth.token.email.matches("^driver[1-5]@abdo124206\\.com$")
+      );
+    }
     function isCustomer() { return signedIn() && !isAdmin() && !isDriver(); }
 
     match /users/{userId} {

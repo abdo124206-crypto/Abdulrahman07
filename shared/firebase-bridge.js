@@ -30,6 +30,10 @@
   // Keep authentication across browser restarts for Admin, Delivery and Customer.
   window.authPersistenceReady = window.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
     .catch(err => { console.warn("Could not set local auth persistence", err); });
+  window.waitForAuthReady = async () => {
+    await (window.authPersistenceReady || Promise.resolve());
+    return window.auth.currentUser;
+  };
 
   let authReadyResolve;
   window.authReady = new Promise(resolve => { authReadyResolve = resolve; });

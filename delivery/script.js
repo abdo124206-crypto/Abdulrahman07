@@ -8,7 +8,16 @@ function showGate(msg=""){
   gate.innerHTML=`<div class="auth-card"><div class="auth-logo">البرنس <small>FOOD</small></div><span class="auth-eyebrow">DELIVERY ACCESS</span><h1>دخول الدليفري</h1><form id="driverLogin"><label>البريد الإلكتروني<input id="driverEmail" type="email" required></label><label>كلمة المرور<input id="driverPassword" type="password" required></label><button class="auth-submit">دخول</button><div id="driverMsg" class="auth-msg error">${escapeHtml(msg)}</div></form></div>`;
   $("#driverLogin").onsubmit=async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,$("#driverEmail").value.trim(),$("#driverPassword").value)}catch(err){$("#driverMsg").textContent="البريد أو كلمة المرور غير صحيحة."}};
 }
-async function roleOf(uid){const snap=await getDoc(doc(db,"users",uid));if(!snap.exists())return "";return String(snap.data()?.role||"").trim().toLowerCase()}
+async function roleOf(uid){
+  try{
+    const snap=await getDoc(doc(db,"users",uid));
+    const role=snap.exists()?String(snap.data()?.role||"").trim().toLowerCase():"";
+    if(role) return role;
+  }catch(err){ console.error("role lookup failed",err); }
+  const email=String(currentUser?.email||"").trim().toLowerCase();
+  if(/^driver[1-5]@abdo124206\.com$/.test(email)) return "driver";
+  return "";
+}
 function todayStart(){const d=new Date();d.setHours(0,0,0,0);return d}
 function isToday(o){const t=o.createdAt?.toDate?o.createdAt.toDate():new Date(o.createdAt||0);return t>=todayStart()}
 function renderStats(){
@@ -90,9 +99,9 @@ onAuthStateChanged(auth,async user=>{
   currentUser=user;
   if(!user){showGate();return}
   try{
+    await (window.authPersistenceReady||Promise.resolve());
     const role=await roleOf(user.uid);
     if(role!=="driver"){
-      await signOut(auth);
       showGate("الحساب ده مش Driver.");
       return;
     }
@@ -101,5 +110,5 @@ onAuthStateChanged(auth,async user=>{
     $("#welcomeTitle").textContent="أهلاً بيك 👋";
     $("#profileName").textContent="مندوب الدليفري";
     await loadOrders();
-  }catch(e){console.error(e);showGate("تعذر التحقق من الصلاحيات.")}
+  }catch(e){console.error("Delivery auth/role error:",e);showGate("تعذر قراءة صلاحية الحساب. تأكد أن حساب الدليفري مسجل كـ driver في users.")}
 });
