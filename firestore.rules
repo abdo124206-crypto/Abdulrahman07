@@ -3,6 +3,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // =========================
+    // AUTH
+    // =========================
+
     function signedIn() {
       return request.auth != null;
     }
@@ -22,31 +26,23 @@ service cloud.firestore {
         : "";
     }
 
+
     // =========================
     // ROLES
     // =========================
 
     function isAdmin() {
-      return signedIn() && (
-        userRole() == "admin"
-        || request.auth.token.email == "user1@abdo124206.com"
-      );
+      return signedIn() && userRole() == "admin";
     }
 
     function isDriver() {
-      return signedIn() && (
-        userRole() == "driver"
-        || (
-          request.auth.token.email != null
-          && request.auth.token.email.matches(
-            "^driver[1-5]@abdo124206\\.com$"
-          )
-        )
-      );
+      return signedIn() && userRole() == "driver";
     }
 
     function isCustomer() {
-      return signedIn() && !isAdmin() && !isDriver();
+      return signedIn()
+        && !isAdmin()
+        && !isDriver();
     }
 
 
@@ -56,21 +52,26 @@ service cloud.firestore {
 
     match /users/{userId} {
 
+      // إنشاء حساب العميل
       allow create: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.role == "customer";
 
+      // الأدمن يرى الجميع، والمستخدم يرى نفسه
       allow read: if signedIn()
         && (
           isAdmin()
           || request.auth.uid == userId
         );
 
+      // الأدمن يعدل أي حساب
+      // المستخدم يعدل بياناته بدون تغيير الـ role
       allow update: if isAdmin()
         || (
           signedIn()
           && request.auth.uid == userId
-          && request.resource.data.role == resource.data.role
+          && resource.data.role == "customer"
+          && request.resource.data.role == "customer"
         );
 
       allow delete: if isAdmin();
@@ -89,11 +90,7 @@ service cloud.firestore {
           || request.auth.uid == userId
         );
 
-      allow create: if isAdmin();
-
-      allow update: if isAdmin();
-
-      allow delete: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
 
@@ -103,14 +100,15 @@ service cloud.firestore {
 
     match /orders/{orderId} {
 
-      // Customer creates a new order
-      allow create: if isCustomer()
+      // إنشاء طلب جديد
+      // أي مستخدم مسجل الدخول يقدر ينشئ طلبًا لنفسه
+      allow create: if signedIn()
         && request.resource.data.customer.uid == request.auth.uid
         && request.resource.data.status == "new"
         && request.resource.data.driver.uid == "";
 
 
-      // Read orders
+      // قراءة الطلبات
       allow read: if signedIn()
         && (
           // Admin
@@ -137,15 +135,15 @@ service cloud.firestore {
         );
 
 
-      // Update orders
+      // تعديل الطلبات
       allow update: if
 
-        // Admin can update everything
+        // Admin
         isAdmin()
 
         ||
 
-        // Driver can update assigned order status
+        // Driver
         (
           isDriver()
 
@@ -175,60 +173,28 @@ service cloud.firestore {
 
         ||
 
-        // Customer can cancel a new order
-        // or update allowed customer fields
+        // Customer يلغي الطلب الجديد فقط
         (
           isCustomer()
 
           && resource.data.customer.uid == request.auth.uid
 
-          && (
-            (
-              resource.data.status == "new"
+          && resource.data.status == "new"
 
-              && request.resource.data.status == "cancelled"
+          && request.resource.data.status == "cancelled"
 
-              && request.resource.data.customer.uid
-                  == resource.data.customer.uid
+          && request.resource.data.customer.uid
+              == resource.data.customer.uid
 
-              && request.resource.data.items
-                  == resource.data.items
+          && request.resource.data.items
+              == resource.data.items
 
-              && request.resource.data.total
-                  == resource.data.total
-            )
-
-            ||
-
-            (
-              request.resource.data.customer.uid
-                  == resource.data.customer.uid
-
-              && request.resource.data.items
-                  == resource.data.items
-
-              && request.resource.data.total
-                  == resource.data.total
-
-              && request.resource.data.status
-                  == resource.data.status
-
-              && request.resource.data.keys().hasOnly([
-                "customer",
-                "notes",
-                "items",
-                "total",
-                "status",
-                "driver",
-                "createdAt",
-                "customerMessage"
-              ])
-            )
-          )
+          && request.resource.data.total
+              == resource.data.total
         );
 
 
-      // Only admin can delete orders
+      // حذف الطلب للأدمن فقط
       allow delete: if isAdmin();
 
 
@@ -238,7 +204,7 @@ service cloud.firestore {
 
       match /messages/{messageId} {
 
-        // Read chat
+        // قراءة الرسائل
         allow read: if signedIn()
           && (
 
@@ -277,7 +243,7 @@ service cloud.firestore {
           );
 
 
-        // Send chat message
+        // إرسال الرسائل
         allow create: if signedIn()
           && (
 
@@ -316,7 +282,7 @@ service cloud.firestore {
           );
 
 
-        // Only admin can edit/delete messages
+        // الأدمن فقط يعدل أو يحذف الرسائل
         allow update, delete: if isAdmin();
       }
     }
@@ -328,10 +294,8 @@ service cloud.firestore {
 
     match /menu/{itemId} {
 
-      // Everyone can view menu
       allow read: if true;
 
-      // Admin only can modify menu
       allow write: if isAdmin();
     }
 
