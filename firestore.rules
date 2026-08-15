@@ -8,7 +8,8 @@ service cloud.firestore {
     }
 
     function hasUserDoc() {
-      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
     function userRole() {
@@ -23,91 +24,220 @@ service cloud.firestore {
         request.auth.token.email == "user1@abdo124206.com"
       );
     }
+
     function isDriver() {
       return signedIn() && (
         userRole() == "driver" ||
-        request.auth.token.email.matches("^driver[1-5]@abdo124206\\.com$")
+        (
+          request.auth.token.email != null &&
+          request.auth.token.email.matches(
+            "^driver[1-5]@abdo124206\\.com$"
+          )
+        )
       );
     }
-    function isCustomer() { return signedIn() && !isAdmin() && !isDriver(); }
+
+    function isCustomer() {
+      return signedIn() && !isAdmin() && !isDriver();
+    }
+
 
     match /users/{userId} {
+
       allow create: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.role == "customer";
-      allow read: if signedIn() && (isAdmin() || request.auth.uid == userId);
+
+      allow read: if signedIn()
+        && (isAdmin() || request.auth.uid == userId);
+
       allow update: if isAdmin()
-        || (signedIn() && request.auth.uid == userId
-            && request.resource.data.role == resource.data.role);
+        || (
+          signedIn()
+          && request.auth.uid == userId
+          && request.resource.data.role == resource.data.role
+        );
+
       allow delete: if isAdmin();
     }
 
 
     match /users/{userId}/assignments/{assignmentId} {
-      allow read: if signedIn() && (isAdmin() || request.auth.uid == userId);
+
+      allow read: if signedIn()
+        && (isAdmin() || request.auth.uid == userId);
+
       allow create, update: if isAdmin();
+
       allow delete: if isAdmin();
     }
 
+
     match /orders/{orderId} {
+
+      // إنشاء طلب جديد بواسطة العميل
       allow create: if isCustomer()
         && request.resource.data.customer.uid == request.auth.uid
         && request.resource.data.status == "new"
         && request.resource.data.driver.uid == "";
 
+
+      // قراءة الطلب
       allow read: if signedIn() && (
         isAdmin()
+
         || resource.data.customer.uid == request.auth.uid
-        || (isDriver() && (resource.data.driver.uid == request.auth.uid || resource.data.assignedDriverUid == request.auth.uid))
+
+        || (
+          isDriver()
+          && (
+            resource.data.driver.uid == request.auth.uid
+            || resource.data.assignedDriverUid == request.auth.uid
+          )
+        )
       );
 
+
+      // تعديل الطلب
       allow update: if isAdmin()
-        || (isDriver()
-          && (resource.data.driver.uid == request.auth.uid || resource.data.assignedDriverUid == request.auth.uid)
-          && request.resource.data.customer.uid == resource.data.customer.uid
-          && request.resource.data.driver.uid == resource.data.driver.uid
-          && request.resource.data.total == resource.data.total
-          && request.resource.data.items == resource.data.items
-          && request.resource.data.status in ["ready", "on_the_way", "delivered"])
-        || (isCustomer()
+
+        || (
+          isDriver()
+          && (
+            resource.data.driver.uid == request.auth.uid
+            || resource.data.assignedDriverUid == request.auth.uid
+          )
+          && request.resource.data.customer.uid
+              == resource.data.customer.uid
+          && request.resource.data.driver.uid
+              == resource.data.driver.uid
+          && request.resource.data.total
+              == resource.data.total
+          && request.resource.data.items
+              == resource.data.items
+          && request.resource.data.status in [
+            "ready",
+            "on_the_way",
+            "delivered"
+          ]
+        )
+
+        || (
+          isCustomer()
           && resource.data.customer.uid == request.auth.uid
           && (
-            (resource.data.status == "new"
+            (
+              resource.data.status == "new"
               && request.resource.data.status == "cancelled"
-              && request.resource.data.customer.uid == resource.data.customer.uid
-              && request.resource.data.items == resource.data.items
-              && request.resource.data.total == resource.data.total)
-            || (request.resource.data.customer.uid == resource.data.customer.uid
-              && request.resource.data.items == resource.data.items
-              && request.resource.data.total == resource.data.total
-              && request.resource.data.status == resource.data.status
-              && request.resource.data.keys().hasOnly(["customer","notes","items","total","status","driver","createdAt","customerMessage"]))
-          ));
+              && request.resource.data.customer.uid
+                  == resource.data.customer.uid
+              && request.resource.data.items
+                  == resource.data.items
+              && request.resource.data.total
+                  == resource.data.total
+            )
 
+            || (
+              request.resource.data.customer.uid
+                  == resource.data.customer.uid
+              && request.resource.data.items
+                  == resource.data.items
+              && request.resource.data.total
+                  == resource.data.total
+              && request.resource.data.status
+                  == resource.data.status
+              && request.resource.data.keys().hasOnly([
+                "customer",
+                "notes",
+                "items",
+                "total",
+                "status",
+                "driver",
+                "createdAt",
+                "customerMessage"
+              ])
+            )
+          )
+        );
+
+
+      // حذف الطلب للأدمن فقط
       allow delete: if isAdmin();
 
+
+      // محادثة الطلب
       match /messages/{messageId} {
+
+        // قراءة الرسائل
         allow read: if signedIn() && (
           isAdmin()
-          || get(/databases/$(database)/documents/orders/$(orderId)).data.customer.uid == request.auth.uid
-          || (isDriver() && (get(/databases/$(database)/documents/orders/$(orderId)).data.driver.uid == request.auth.uid || get(/databases/$(database)/documents/orders/$(orderId)).data.assignedDriverUid == request.auth.uid))
+
+          || get(
+            /databases/$(database)/documents/orders/$(orderId)
+          ).data.customer.uid == request.auth.uid
+
+          || (
+            isDriver()
+            && (
+              get(
+                /databases/$(database)/documents/orders/$(orderId)
+              ).data.driver.uid == request.auth.uid
+
+              || get(
+                /databases/$(database)/documents/orders/$(orderId)
+              ).data.assignedDriverUid == request.auth.uid
+            )
+          )
         );
+
+
+        // إرسال الرسائل
         allow create: if signedIn() && (
           isAdmin()
-          || get(/databases/$(database)/documents/orders/$(orderId)).data.customer.uid == request.auth.uid
-          || (isDriver() && (get(/databases/$(database)/documents/orders/$(orderId)).data.driver.uid == request.auth.uid || get(/databases/$(database)/documents/orders/$(orderId)).data.assignedDriverUid == request.auth.uid))
+
+          || get(
+            /databases/$(database)/documents/orders/$(orderId)
+          ).data.customer.uid == request.auth.uid
+
+          || (
+            isDriver()
+            && (
+              get(
+                /databases/$(database)/documents/orders/$(orderId)
+              ).data.driver.uid == request.auth.uid
+
+              || get(
+                /databases/$(database)/documents/orders/$(orderId)
+              ).data.assignedDriverUid == request.auth.uid
+            )
+          )
         );
+
+
+        // تعديل وحذف الرسائل للأدمن فقط
         allow update, delete: if isAdmin();
       }
     }
 
+
+    // المنيو
     match /menu/{itemId} {
+
       allow read: if true;
+
       allow write: if isAdmin();
     }
 
+
+    // الدليفري
     match /drivers/{driverId} {
-      allow read: if signedIn() && (isAdmin() || resource.data.uid == request.auth.uid);
+
+      allow read: if signedIn()
+        && (
+          isAdmin()
+          || resource.data.uid == request.auth.uid
+        );
+
       allow write: if isAdmin();
     }
   }
