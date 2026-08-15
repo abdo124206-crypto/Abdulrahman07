@@ -1,0 +1,24 @@
+AL PRINCE FOOD — START HERE
+
+1) Customer: customer/index.html
+2) Admin: admin/index.html
+3) Delivery: delivery/index.html
+
+IMPORTANT — Firebase
+- Authentication > Sign-in method > Anonymous = Enabled.
+- Authentication > Settings > Authorized domains: add the real website domain (for example your GitHub Pages domain).
+- Do NOT test the real Firebase ordering flow by double-clicking the HTML as file://. Use the deployed web URL (GitHub Pages/hosting).
+- Firestore rules are in firestore.rules.
+
+Customer flow
+- Customer does NOT need email/password.
+- The site creates an anonymous Firebase session automatically.
+- Customer adds items -> checkout -> order is written to Firestore.
+- Admin receives the order live.
+- Admin can change status and assign a driver.
+- Driver receives assigned orders live.
+- Customer sees live order tracking and can message the restaurant from the tracking panel.
+
+Design
+- Customer UI received a visual upgrade focused on food photography, depth, gradients, premium cards, responsive mobile layout, cart, and live tracking.
+- Admin and Delivery dashboards received visual polish while keeping their existing functionality.
