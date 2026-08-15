@@ -48,7 +48,7 @@ function showGate(message=""){
   gate.innerHTML=`<div class="auth-card"><div class="auth-logo">البرنس <small>FOOD</small></div><span class="auth-eyebrow">ADMIN ACCESS</span><h1>دخول لوحة الإدارة</h1><p class="auth-sub">استخدم حساب الإدارة المصرح به.</p><form id="adminLogin"><label>البريد الإلكتروني<input id="adminEmail" type="email" required></label><label>كلمة المرور<input id="adminPassword" type="password" required></label><button class="auth-submit">دخول</button><div id="adminMsg" class="auth-msg error">${message}</div></form></div>`;
   $("#adminLogin").onsubmit=async e=>{e.preventDefault();const msg=$("#adminMsg");try{await signInWithEmailAndPassword(auth,$("#adminEmail").value.trim(),$("#adminPassword").value);msg.className="auth-msg";msg.textContent="جاري الدخول..."}catch(err){msg.textContent="البريد أو كلمة المرور غير صحيحة."}};
 }
-async function roleOf(uid){const s=await getDoc(doc(db,"users",uid));return s.exists()?s.data().role:""}
+async function roleOf(uid){const s=await getDoc(doc(db,"users",uid));return s.exists?s.data().role:""}
 function renderOrders(){
   const tbody=$("#ordersTable");
   if(!orders.length){tbody.innerHTML=`<tr><td colspan="7"><div style="padding:35px;text-align:center;color:#938682">لا توجد طلبات حاليًا. أي طلب جديد من العميل سيظهر هنا لحظيًا.</div></td></tr>`;$("#recentOrders").innerHTML=`<div style="padding:30px;text-align:center;color:#938682">لا توجد طلبات جديدة.</div>`;return;}

@@ -5,7 +5,7 @@ import {
 
 export async function getUserRole(uid) {
   const snap = await getDoc(doc(db, "users", uid));
-  return snap.exists() ? snap.data().role || "" : "";
+  return snap.exists ? snap.data().role || "" : "";
 }
 
 function esc(v="") {
