@@ -24,12 +24,26 @@
     return;
   }
 
+  // Primary Auth: Admin + Delivery.
+  // Customer gets a completely separate Firebase Auth app so the three roles
+  // can stay signed in independently in the same browser.
   window.auth = firebase.auth();
   window.db = firebase.firestore();
 
-  // Keep authentication across browser restarts for Admin, Delivery and Customer.
   window.authPersistenceReady = window.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
     .catch(err => { console.warn("Could not set local auth persistence", err); });
+
+  try {
+    const customerApp = firebase.apps.find(a => a.name === "customer") || firebase.initializeApp(config, "customer");
+    window.customerAuth = customerApp.auth();
+    window.customerAuthPersistenceReady = window.customerAuth
+      .setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+      .catch(err => { console.warn("Could not set customer local auth persistence", err); });
+  } catch (e) {
+    console.error("Customer Firebase Auth initialization failed:", e);
+    window.customerAuth = null;
+    window.customerAuthPersistenceReady = Promise.resolve();
+  }
   window.waitForAuthReady = async () => {
     await (window.authPersistenceReady || Promise.resolve());
     return window.auth.currentUser;
@@ -44,6 +58,21 @@
       authReadyResolve(user || null);
     }
   });
+
+  let customerAuthReadyResolve;
+  window.customerAuthReady = new Promise(resolve => { customerAuthReadyResolve = resolve; });
+  let customerAuthReadyResolved = false;
+  if (window.customerAuth) {
+    window.customerAuth.onAuthStateChanged(user => {
+      if (!customerAuthReadyResolved) {
+        customerAuthReadyResolved = true;
+        customerAuthReadyResolve(user || null);
+      }
+    });
+  } else {
+    customerAuthReadyResolved = true;
+    customerAuthReadyResolve(null);
+  }
 
   // Firestore helpers compatible with the code used by Customer/Admin/Delivery.
   window.collection = (db, ...segments) => {
@@ -105,6 +134,7 @@
     const a = authInstance || window.auth;
     return a.signInAnonymously();
   };
+  window.signOutCustomer = () => window.customerAuth ? window.customerAuth.signOut() : Promise.resolve();
 
   window.signOut = authInstance => {
     const a = authInstance || window.auth;

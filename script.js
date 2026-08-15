@@ -71,10 +71,10 @@ async function ensureCustomerSession(){
   if(currentUser) return currentUser;
   if(!window.firebaseReady) return null;
   try{
-    await (window.authReady || Promise.resolve(null));
-    if(currentUser) return currentUser;
-    await (window.authPersistenceReady || Promise.resolve());
-    const cred = await signInAnonymously();
+    await (window.customerAuthReady || Promise.resolve(null));
+    if(currentUser && currentUser.isAnonymous) return currentUser;
+    await (window.customerAuthPersistenceReady || Promise.resolve());
+    const cred = await signInAnonymously(window.customerAuth);
     currentUser = cred.user;
     return currentUser;
   }catch(err){
@@ -219,8 +219,8 @@ $("#checkoutForm").addEventListener("submit",async e=>{e.preventDefault();const 
   cart=[];saveCart();renderCart();closeCheckout();form.reset();$("#trackingSection")?.scrollIntoView({behavior:"smooth"});toast(window.firebaseReady?"تم إرسال الطلب للمطعم ✓":"تم تسجيل الطلب في المعاينة ✓");
 }catch(err){console.error(err);toast("تعذر إرسال الطلب. تأكد من Firebase.")}});
 
-if(window.firebaseReady && window.auth){
-  window.auth.onAuthStateChanged(user=>{
+if(window.firebaseReady && window.customerAuth){
+  window.customerAuth.onAuthStateChanged(user=>{
     currentUser=user||null;
     if(currentUser){ updateAccountUI(); watchLastOrder(); }
   });
